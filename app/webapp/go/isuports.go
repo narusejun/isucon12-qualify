@@ -100,7 +100,7 @@ var (
 
 func getConnection(id int64, fillDBN bool) (*sqlx.DB, error) {
 	host := "isuports-2.t.isucon.dev"
-	if id/10%2 == 0 {
+	if id == 1 {
 		host = "isuports-3.t.isucon.dev"
 	}
 

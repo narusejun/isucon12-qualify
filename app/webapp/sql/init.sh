@@ -22,12 +22,12 @@ mysql -u"$ISUCON_DB_USER" \
 for id in $(seq 2 100); do
 	export id=$id
 
-	if [ "$(( $id / 10 % 2 ))" -eq "1" ]; then
-		export ISUCON_DB_HOST=isuports-2.t.isucon.dev
-	else
-		export ISUCON_DB_HOST=isuports-3.t.isucon.dev
-	fi
-
+	# if [ "$(( $id / 10 % 2 ))" -eq "1" ]; then
+	# 	export ISUCON_DB_HOST=isuports-2.t.isucon.dev
+	# else
+	# 	export ISUCON_DB_HOST=isuports-3.t.isucon.dev
+	# fi
+	export ISUCON_DB_HOST=isuports-2.t.isucon.dev
 	sh init_tenant.sh &
 done
 
