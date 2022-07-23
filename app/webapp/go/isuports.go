@@ -139,7 +139,14 @@ func getConnection(id int64, fillDBN bool) (*sqlx.DB, error) {
 		config.DBName = ""
 	}
 
-	return sqlx.Open("mysql", config.FormatDSN())
+	db, err := sqlx.Open("mysql", config.FormatDSN())
+	if err != nil {
+		return nil, err
+	}
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(10)
+
+	return db, nil
 }
 
 func connectToTenantDB(id int64) (*sqlx.DB, error) {
