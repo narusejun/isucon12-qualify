@@ -627,6 +627,7 @@ type BillingReport struct {
 	BillingYen        int64  `json:"billing_yen" db:"billing_yen"`                 // 合計請求金額
 
 	CompetitionCreatedAt int64 `json:"-"`
+	TenantID             int64 `json:"-" db:"tenant_id"`
 }
 
 type VisitHistoryRow struct {
