@@ -805,7 +805,7 @@ func tenantsBillingHandler(c echo.Context) error {
 		return err
 	}
 	sort.Slice(tenantBillings, func(i, j int) bool {
-		return tenantBillings[i].ID > tenantBillings[j].ID
+		return tenantBillings[i].ID < tenantBillings[j].ID
 	})
 
 	return c.JSON(http.StatusOK, SuccessResult{
