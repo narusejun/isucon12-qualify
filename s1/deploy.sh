@@ -12,7 +12,7 @@ cd /home/isucon/webapp/go
 make
 
 # ミドルウェア・Appの再起動
-sudo systemctl restart mariadb
+sudo systemctl restart mysql
 sudo systemctl reload nginx
 sudo systemctl restart isuports
 
