@@ -16,23 +16,38 @@ mysql -u"$ISUCON_DB_USER" \
 		--port "$ISUCON_DB_PORT" \
 		"$ISUCON_DB_NAME" < init.sql
 
-for id in $(seq 2 100)
+for id in $(seq 1 100)
 do
 	echo "
 		DROP DATABASE IF EXISTS isuports_tenant_$id;
 		CREATE DATABASE isuports_tenant_$id;
+
+		USE base_isuports_tenant_$id;
+		FLUSH TABLES competition FOR EXPORT;
+		FLUSH TABLES player FOR EXPORT;
+		FLUSH TABLES player_score FOR EXPORT;
+
 		USE isuports_tenant_$id;
-		SET autocommit = 0;
-		BEGIN;
 		$(cat tenant/10_schema.sql)
-		INSERT INTO competition SELECT * FROM base_isuports_tenant_$id.competition;
-		INSERT INTO player SELECT * FROM base_isuports_tenant_$id.player;
-		INSERT INTO player_score SELECT * FROM base_isuports_tenant_$id.player_score;
-		COMMIT;
+		ALTER TABLE competition DISCARD TABLESPACE;
+		ALTER TABLE player DISCARD TABLESPACE;
+		ALTER TABLE player_score DISCARD TABLESPACE;
 	" | mysql -u"$ISUCON_DB_USER" \
 			-p"$ISUCON_DB_PASSWORD" \
 			--host "$ISUCON_DB_HOST" \
-			--port "$ISUCON_DB_PORT" &
-done
+			--port "$ISUCON_DB_PORT"
 
-wait
+	sudo rm -rf /var/lib/mysql/isuports_tenant_$id
+	sudo cp -ra /var/lib/mysql/base_isuports_tenant_$id /var/lib/mysql/isuports_tenant_$id
+
+	echo "
+		ALTER TABLE competition IMPORT TABLESPACE;
+		ALTER TABLE player IMPORT TABLESPACE;
+		ALTER TABLE player_score IMPORT TABLESPACE;
+		$(cat tenant/11_index.sql)
+	" | mysql -u"$ISUCON_DB_USER" \
+			-p"$ISUCON_DB_PASSWORD" \
+			--host "$ISUCON_DB_HOST" \
+			--port "$ISUCON_DB_PORT" \
+			"isuports_tenant_$id"
+done
