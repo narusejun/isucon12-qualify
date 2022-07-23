@@ -28,6 +28,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -1327,6 +1328,8 @@ type CompetitionRankingHandlerResult struct {
 // 参加者向けAPI
 // GET /api/player/competition/:competition_id/ranking
 // 大会ごとのランキングを取得する
+var crGroup = singleflight.Group{}
+
 func competitionRankingHandler(c echo.Context) error {
 	ctx := context.Background()
 	v, err := parseViewer(c)
@@ -1392,43 +1395,50 @@ func competitionRankingHandler(c echo.Context) error {
 		return fmt.Errorf("error flockByTenantID: %w", err)
 	}
 	defer fl.Close()
-	pss := []PlayerScoreRow{}
-	if err := tenantDB.SelectContext(
-		ctx,
-		&pss,
-		"SELECT player_score.*, player.display_name as display_name FROM player_score "+
-			"LEFT JOIN player ON player.id = player_score.player_id "+
-			"WHERE player_score.tenant_id = ? AND player_score.competition_id = ? AND player.id IS NOT NULL "+
-			"ORDER BY row_num DESC",
-		// ここWindow関数でやるとよい
-		tenant.ID,
-		competitionID,
-	); err != nil {
-		return fmt.Errorf("error Select player_score: tenantID=%d, competitionID=%s, %w", tenant.ID, competitionID, err)
-	}
-	ranks := make([]CompetitionRank, 0, len(pss))
-	scoredPlayerSet := make(map[string]struct{}, len(pss))
-	for _, ps := range pss {
-		// player_scoreが同一player_id内ではrow_numの降順でソートされているので
-		// 現れたのが2回目以降のplayer_idはより大きいrow_numでスコアが出ているとみなせる
-		if _, ok := scoredPlayerSet[ps.PlayerID]; ok {
-			continue
+	doResult, err, _ := crGroup.Do(competitionID+"-"+rankAfterStr, func() (interface{}, error) {
+		pss := []PlayerScoreRow{}
+		if err := tenantDB.SelectContext(
+			ctx,
+			&pss,
+			"SELECT player_score.*, player.display_name as display_name FROM player_score "+
+				"LEFT JOIN player ON player.id = player_score.player_id "+
+				"WHERE player_score.tenant_id = ? AND player_score.competition_id = ? AND player.id IS NOT NULL "+
+				"ORDER BY row_num DESC",
+			// ここWindow関数でやるとよい
+			tenant.ID,
+			competitionID,
+		); err != nil {
+			return nil, fmt.Errorf("error Select player_score: tenantID=%d, competitionID=%s, %w", tenant.ID, competitionID, err)
 		}
-		scoredPlayerSet[ps.PlayerID] = struct{}{}
-		ranks = append(ranks, CompetitionRank{
-			Score:             ps.Score,
-			PlayerID:          ps.PlayerID,
-			PlayerDisplayName: ps.DisplayName,
-			RowNum:            ps.RowNum,
+		ranks := make([]CompetitionRank, 0, len(pss))
+		scoredPlayerSet := make(map[string]struct{}, len(pss))
+		for _, ps := range pss {
+			// player_scoreが同一player_id内ではrow_numの降順でソートされているので
+			// 現れたのが2回目以降のplayer_idはより大きいrow_numでスコアが出ているとみなせる
+			if _, ok := scoredPlayerSet[ps.PlayerID]; ok {
+				continue
+			}
+			scoredPlayerSet[ps.PlayerID] = struct{}{}
+			ranks = append(ranks, CompetitionRank{
+				Score:             ps.Score,
+				PlayerID:          ps.PlayerID,
+				PlayerDisplayName: ps.DisplayName,
+				RowNum:            ps.RowNum,
+			})
+		}
+		sort.Slice(ranks, func(i, j int) bool {
+			if ranks[i].Score == ranks[j].Score {
+				return ranks[i].RowNum < ranks[j].RowNum
+			}
+			return ranks[i].Score > ranks[j].Score
 		})
-	}
-	sort.Slice(ranks, func(i, j int) bool {
-		if ranks[i].Score == ranks[j].Score {
-			return ranks[i].RowNum < ranks[j].RowNum
-		}
-		return ranks[i].Score > ranks[j].Score
+		return ranks, nil
 	})
+	if err != nil {
+		return fmt.Errorf("error crGroup.Do: %w", err)
+	}
 
+	ranks := doResult.([]CompetitionRank)
 	pagedRanks := make([]CompetitionRank, 0, 100)
 	for i, rank := range ranks {
 		if int64(i) < rankAfter {
