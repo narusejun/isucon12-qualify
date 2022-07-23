@@ -424,7 +424,8 @@ type PlayerScoreRow struct {
 	CreatedAt     int64  `db:"created_at"`
 	UpdatedAt     int64  `db:"updated_at"`
 	// 追加
-	DisplayName string `db:"display_name"`
+	DisplayName      string `db:"display_name"`
+	CompetitionTitle string `db:"-"`
 }
 
 // 排他ロックのためのファイル名を生成する
@@ -1267,17 +1268,14 @@ func playerHandler(c echo.Context) error {
 			}
 			return fmt.Errorf("error Select player_score: tenantID=%d, competitionID=%s, playerID=%s, %w", v.tenantID, c.ID, p.ID, err)
 		}
+		ps.CompetitionTitle = c.Title
 		pss = append(pss, ps)
 	}
 
 	psds := make([]PlayerScoreDetail, 0, len(pss))
 	for _, ps := range pss {
-		comp, err := retrieveCompetition(ctx, tenantDB, ps.CompetitionID)
-		if err != nil {
-			return fmt.Errorf("error retrieveCompetition: %w", err)
-		}
 		psds = append(psds, PlayerScoreDetail{
-			CompetitionTitle: comp.Title,
+			CompetitionTitle: ps.CompetitionTitle,
 			Score:            ps.Score,
 		})
 	}
