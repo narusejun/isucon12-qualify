@@ -18,7 +18,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"sync"
 
 	"github.com/bwmarrin/snowflake"
 	"github.com/go-sql-driver/mysql"

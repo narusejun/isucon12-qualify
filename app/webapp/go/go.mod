@@ -3,6 +3,7 @@ module github.com/isucon/isucon12-qualify/webapp/go
 go 1.18
 
 require (
+	github.com/bwmarrin/snowflake v0.3.0
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/goccy/go-json v0.9.10
 	github.com/gofrs/flock v0.8.1
@@ -18,7 +19,6 @@ require (
 	github.com/Microsoft/go-winio v0.4.16 // indirect
 	github.com/ProtonMail/go-crypto v0.0.0-20210428141323-04723f9f07d7 // indirect
 	github.com/acomagu/bufpipe v1.0.3 // indirect
-	github.com/bwmarrin/snowflake v0.3.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/emirpasic/gods v1.12.0 // indirect
 	github.com/felixge/fgprof v0.9.2 // indirect
