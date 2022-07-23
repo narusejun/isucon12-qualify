@@ -625,6 +625,8 @@ type BillingReport struct {
 	BillingPlayerYen  int64  `json:"billing_player_yen"`  // 請求金額 スコアを登録した参加者分
 	BillingVisitorYen int64  `json:"billing_visitor_yen"` // 請求金額 ランキングを閲覧だけした(スコアを登録していない)参加者分
 	BillingYen        int64  `json:"billing_yen"`         // 合計請求金額
+
+	CompetitionCreatedAt int64 `json:"-"`
 }
 
 type VisitHistoryRow struct {
@@ -779,14 +781,10 @@ func tenantsBillingHandler(c echo.Context) error {
 
 	lock := sync.Mutex{}
 	tenantBillings := make([]TenantWithBilling, 0, len(ts))
-
 	eg, ctx := errgroup.WithContext(c.Request().Context())
-	wg := sync.WaitGroup{}
 	for _, t := range ts {
 		t := t
-		wg.Add(1)
 		eg.Go(func() error {
-			defer wg.Done()
 			tb := TenantWithBilling{
 				IntID:       t.ID,
 				ID:          strconv.FormatInt(t.ID, 10),
@@ -1276,21 +1274,36 @@ func billingHandler(c echo.Context) error {
 	if err := tenantDB.SelectContext(
 		ctx,
 		&cs,
-		"SELECT * FROM competition WHERE tenant_id=? ORDER BY created_at DESC",
+		"SELECT * FROM competition WHERE tenant_id=?",
 		v.tenantID,
 	); err != nil {
 		return fmt.Errorf("error Select competition: %w", err)
 	}
 
+	lock := sync.Mutex{}
 	tbrs := make([]*BillingReport, 0, len(cs))
-
-	for _, comp := range cs {
-		report, err := billingReportByCompetition(ctx, tenantDB, v.tenantID, &comp)
-		if err != nil {
-			return fmt.Errorf("error billingReportByCompetition: %w", err)
-		}
-		tbrs = append(tbrs, report)
+	eg, ctx := errgroup.WithContext(c.Request().Context())
+	for i := range cs {
+		i := i
+		eg.Go(func() error {
+			report, err := billingReportByCompetition(ctx, tenantDB, v.tenantID, &cs[i])
+			if err != nil {
+				return fmt.Errorf("error billingReportByCompetition: %w", err)
+			}
+			report.CompetitionCreatedAt = cs[i].CreatedAt
+			lock.Lock()
+			tbrs = append(tbrs, report)
+			lock.Unlock()
+			return nil
+		})
 	}
+
+	if err := eg.Wait(); err != nil {
+		return err
+	}
+	sort.Slice(tbrs, func(i, j int) bool {
+		return tbrs[i].CompetitionCreatedAt > tbrs[j].CompetitionCreatedAt
+	})
 
 	res := SuccessResult{
 		Status: true,
