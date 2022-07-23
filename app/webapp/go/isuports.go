@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bwmarrin/snowflake"
@@ -84,8 +85,20 @@ func connectAdminDB() (*sqlx.DB, error) {
 	return sqlx.Open("mysql", dsn)
 }
 
+var (
+	dbMap     = map[int64]*sqlx.DB{}
+	dbRWMutex sync.RWMutex
+)
+
 // テナントDBに接続する
 func connectToTenantDB(id int64) (*sqlx.DB, error) {
+	dbRWMutex.RLock()
+	db, ok := dbMap[id]
+	dbRWMutex.RUnlock()
+	if ok {
+		return db, nil
+	}
+
 	config := mysql.NewConfig()
 	config.Net = "tcp"
 	config.Addr = getEnv("ISUCON_DB_HOST", "127.0.0.1") + ":" + getEnv("ISUCON_DB_PORT", "3306")
@@ -94,7 +107,14 @@ func connectToTenantDB(id int64) (*sqlx.DB, error) {
 	config.DBName = fmt.Sprintf("isuports_tenant_%d", id)
 	config.ParseTime = true
 	dsn := config.FormatDSN()
-	return sqlx.Open("mysql", dsn)
+	db, err := sqlx.Open("mysql", dsn)
+	if err != nil {
+		return nil, err
+	}
+	dbRWMutex.Lock()
+	dbMap[id] = db
+	dbRWMutex.Unlock()
+	return db, nil
 }
 
 // テナントDBを新規に作成する
