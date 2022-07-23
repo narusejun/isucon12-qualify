@@ -19,9 +19,17 @@ mysql -u"$ISUCON_DB_USER" \
 # export id=1
 # sh init_tenant_huge.sh &
 
-for id in $(seq 2 100)
+for id in $(seq 2 2 100)
 do
 	export id=$id
+	export ISUCON_DB_HOST=isuports-2.t.isucon.dev
+	sh init_tenant.sh &
+done
+
+for id in $(seq 3 2 100)
+do
+	export id=$id
+	export ISUCON_DB_HOST=isuports-3.t.isucon.dev
 	sh init_tenant.sh &
 done
 
