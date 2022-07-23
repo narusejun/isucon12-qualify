@@ -96,7 +96,28 @@ var (
 	dbRWMutex sync.RWMutex
 )
 
-// テナントDBに接続する
+func getConnection(id int64, fillDBN bool) (*sqlx.DB, error) {
+	host := "isuports-2.t.isucon.dev"
+	if id%2 == 1 {
+		host = "isuports-3.t.isucon.dev"
+	}
+
+	config := mysql.NewConfig()
+	config.Net = "tcp"
+	config.Addr = host + ":" + getEnv("ISUCON_DB_PORT", "3306")
+	config.User = getEnv("ISUCON_DB_USER", "isucon")
+	config.Passwd = getEnv("ISUCON_DB_PASSWORD", "isucon")
+	config.DBName = fmt.Sprintf("isuports_tenant_%d", id)
+	config.ParseTime = true
+	config.InterpolateParams = true
+
+	if !fillDBN {
+		config.DBName = ""
+	}
+
+	return sqlx.Open("mysql", config.FormatDSN())
+}
+
 func connectToTenantDB(id int64) (*sqlx.DB, error) {
 	dbRWMutex.RLock()
 	db, ok := dbMap[id]
@@ -105,19 +126,11 @@ func connectToTenantDB(id int64) (*sqlx.DB, error) {
 		return db, nil
 	}
 
-	config := mysql.NewConfig()
-	config.Net = "tcp"
-	config.Addr = getEnv("ISUCON_DB_HOST", "127.0.0.1") + ":" + getEnv("ISUCON_DB_PORT", "3306")
-	config.User = getEnv("ISUCON_DB_USER", "isucon")
-	config.Passwd = getEnv("ISUCON_DB_PASSWORD", "isucon")
-	config.DBName = fmt.Sprintf("isuports_tenant_%d", id)
-	config.ParseTime = true
-	config.InterpolateParams = true
-	dsn := config.FormatDSN()
-	db, err := sqlx.Open("mysql", dsn)
+	db, err := getConnection(id, true)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to connect to tenant db: %w", err)
 	}
+
 	dbRWMutex.Lock()
 	dbMap[id] = db
 	dbRWMutex.Unlock()
@@ -126,10 +139,16 @@ func connectToTenantDB(id int64) (*sqlx.DB, error) {
 
 // テナントDBを新規に作成する
 func createTenantDB(id int64) error {
-	if _, err := adminDB.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS isuports_tenant_%d", id)); err != nil {
+	conn, err := getConnection(id, false)
+	if err != nil {
+		return fmt.Errorf("failed to connect to target db: %w", err)
+	}
+	defer conn.Close()
+
+	if _, err := conn.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS isuports_tenant_%d", id)); err != nil {
 		return fmt.Errorf("failed to drop tenant DB: %w", err)
 	}
-	if _, err := adminDB.Exec(fmt.Sprintf("CREATE DATABASE isuports_tenant_%d", id)); err != nil {
+	if _, err := conn.Exec(fmt.Sprintf("CREATE DATABASE isuports_tenant_%d", id)); err != nil {
 		return fmt.Errorf("failed to create tenant DB: %w", err)
 	}
 
