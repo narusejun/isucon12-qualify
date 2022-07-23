@@ -17,12 +17,12 @@ sudo systemctl reload nginx
 sudo systemctl restart isuports
 
 # slow query logの有効化
-QUERY="
-set global slow_query_log_file = '/var/log/mysql/mysql-slow.log';
-set global long_query_time = 0;
-set global slow_query_log = ON;
-"
-echo $QUERY | mysql -uroot -proot
+#QUERY="
+#set global slow_query_log_file = '/var/log/mysql/mysql-slow.log';
+#set global long_query_time = 0;
+#set global slow_query_log = ON;
+#"
+#echo $QUERY | mysql -uroot -proot
 
 # log permission
 sudo chmod 777 /var/log/nginx /var/log/nginx/*
