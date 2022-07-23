@@ -19,9 +19,6 @@ mysql -u"$ISUCON_DB_USER" \
 for id in $(seq 1 100)
 do
 	echo "
-		DROP DATABASE IF EXISTS isuports_tenant_$id;
-		CREATE DATABASE isuports_tenant_$id;
-
 		USE base_isuports_tenant_$id;
 		UNLOCK TABLES;
 		FLUSH TABLES competition FOR EXPORT;
@@ -29,7 +26,14 @@ do
 		FLUSH TABLES player FOR EXPORT;
 		UNLOCK TABLES;
 		FLUSH TABLES player_score FOR EXPORT;
+	" | mysql -u"$ISUCON_DB_USER" \
+			-p"$ISUCON_DB_PASSWORD" \
+			--host "$ISUCON_DB_HOST" \
+			--port "$ISUCON_DB_PORT"
 
+	echo "
+		DROP DATABASE IF EXISTS isuports_tenant_$id;
+		CREATE DATABASE isuports_tenant_$id;
 		USE isuports_tenant_$id;
 		$(cat tenant/10_schema.sql)
 		ALTER TABLE competition DISCARD TABLESPACE;
