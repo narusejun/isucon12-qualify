@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"golang.org/x/sync/errgroup"
 	"io"
 	"net/http"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -648,19 +650,18 @@ func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID i
 	); err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("error Select visit_history: tenantID=%d, competitionID=%s, %w", tenantID, comp.ID, err)
 	}
-	billingMap := map[string]string{}
+	billingMap := map[string]int{}
 	for _, vh := range vhs {
 		// competition.finished_atよりもあとの場合は、終了後に訪問したとみなして大会開催内アクセス済みとみなさない
 		if comp.FinishedAt.Valid && comp.FinishedAt.Int64 < vh.MinCreatedAt {
 			continue
 		}
-		billingMap[vh.PlayerID] = "visitor"
+		billingMap[vh.PlayerID] = 1
 	}
 
 	// player_scoreを読んでいるときに更新が走ると不整合が起こるのでロックを取得する
 	tenantLock, _ := flockMem.get(strconv.Itoa(int(tenantID)))
 	tenantLock.RLock()
-	defer tenantLock.RUnlock()
 
 	// スコアを登録した参加者のIDを取得する
 	scoredPlayerIDs := []string{}
@@ -672,18 +673,20 @@ func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID i
 	); err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("error Select count player_score: tenantID=%d, competitionID=%s, %w", tenantID, comp.ID, err)
 	}
+	tenantLock.RUnlock()
+
 	for _, pid := range scoredPlayerIDs {
 		// スコアが登録されている参加者
-		billingMap[pid] = "player"
+		billingMap[pid] = 2
 	}
 
 	var playerCount, visitorCount int64
 	for _, category := range billingMap {
 		switch category {
-		case "player":
-			playerCount++
-		case "visitor":
+		case 1:
 			visitorCount++
+		case 2:
+			playerCount++
 		}
 	}
 
@@ -699,6 +702,7 @@ func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID i
 }
 
 type TenantWithBilling struct {
+	IntID       int64  `json:"-"`
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	DisplayName string `json:"display_name"`
@@ -756,10 +760,19 @@ func tenantsBillingHandler(c echo.Context) error {
 			return fmt.Errorf("error Select tenant: %w", err)
 		}
 	}
+
+	lock := sync.Mutex{}
 	tenantBillings := make([]TenantWithBilling, 0, len(ts))
+
+	eg, ctx := errgroup.WithContext(c.Request().Context())
+	wg := sync.WaitGroup{}
 	for _, t := range ts {
-		err := func(t TenantRow) error {
+		t := t
+		wg.Add(1)
+		eg.Go(func() error {
+			defer wg.Done()
 			tb := TenantWithBilling{
+				IntID:       t.ID,
 				ID:          strconv.FormatInt(t.ID, 10),
 				Name:        t.Name,
 				DisplayName: t.DisplayName,
@@ -784,13 +797,20 @@ func tenantsBillingHandler(c echo.Context) error {
 				}
 				tb.BillingYen += report.BillingYen
 			}
+			lock.Lock()
 			tenantBillings = append(tenantBillings, tb)
+			lock.Unlock()
 			return nil
-		}(t)
-		if err != nil {
-			return err
-		}
+		})
 	}
+
+	if err := eg.Wait(); err != nil {
+		return err
+	}
+	sort.Slice(tenantBillings, func(i, j int) bool {
+		return tenantBillings[i].IntID > tenantBillings[j].IntID
+	})
+
 	return c.JSON(http.StatusOK, SuccessResult{
 		Status: true,
 		Data: TenantsBillingHandlerResult{
