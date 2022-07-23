@@ -1268,7 +1268,7 @@ func playerHandler(c echo.Context) error {
 	if err := tenantDB.GetContext(
 		ctx,
 		&pss,
-		"SELECT DISTINCT competition_id, FIRST_VALUE(score) OVER (PARTITION BY competition_id ORDER BY row_num DESC) AS score FROM player_score WHERE player_id = ?",
+		"SELECT DISTINCT competition.title AS title, FIRST_VALUE(score) OVER (PARTITION BY competition_id ORDER BY row_num DESC) AS score FROM player_score INNER JOIN competition ON competition.id = player_score.competition_id WHERE player_id = ?",
 		p.ID,
 	); err != nil {
 		return fmt.Errorf("error Select player_score: tenantID=%d, playerID=%s, %w", v.tenantID, p.ID, err)
