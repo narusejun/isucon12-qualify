@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"golang.org/x/sync/errgroup"
 	"io"
 	"net/http"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -756,9 +758,17 @@ func tenantsBillingHandler(c echo.Context) error {
 			return fmt.Errorf("error Select tenant: %w", err)
 		}
 	}
+
+	lock := sync.Mutex{}
 	tenantBillings := make([]TenantWithBilling, 0, len(ts))
+
+	eg, ctx := errgroup.WithContext(c.Request().Context())
+	wg := sync.WaitGroup{}
 	for _, t := range ts {
-		err := func(t TenantRow) error {
+		t := t
+		wg.Add(1)
+		eg.Go(func() error {
+			defer wg.Done()
 			tb := TenantWithBilling{
 				ID:          strconv.FormatInt(t.ID, 10),
 				Name:        t.Name,
@@ -784,13 +794,20 @@ func tenantsBillingHandler(c echo.Context) error {
 				}
 				tb.BillingYen += report.BillingYen
 			}
+			lock.Lock()
 			tenantBillings = append(tenantBillings, tb)
+			lock.Unlock()
 			return nil
-		}(t)
-		if err != nil {
-			return err
-		}
+		})
 	}
+
+	if err := eg.Wait(); err != nil {
+		return err
+	}
+	sort.Slice(tenantBillings, func(i, j int) bool {
+		return tenantBillings[i].ID > tenantBillings[j].ID
+	})
+
 	return c.JSON(http.StatusOK, SuccessResult{
 		Status: true,
 		Data: TenantsBillingHandlerResult{
