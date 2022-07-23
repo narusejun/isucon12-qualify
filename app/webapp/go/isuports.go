@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -1467,25 +1466,24 @@ func competitionRankingHandler(c echo.Context) error {
 		if err := tenantDB.SelectContext(
 			ctx,
 			&pss,
-			"SELECT player_score.*, player.display_name as display_name FROM player_score "+
-				"LEFT JOIN player ON player.id = player_score.player_id "+
-				"WHERE player_score.tenant_id = ? AND player_score.competition_id = ? AND player.id IS NOT NULL "+
-				"ORDER BY row_num DESC",
-			// ここWindow関数でやるとよい
+			`
+SELECT DISTINCT
+FIRST_VALUE(player_score.score) OVER(PARTITION BY player_score.player_id ORDER BY row_num DESC) AS score, 
+FIRST_VALUE(player_score.row_num) OVER(PARTITION BY player_score.player_id ORDER BY row_num DESC) AS row_num, 
+player.id as player_id,
+player.display_name as display_name 
+FROM player_score 
+LEFT JOIN player ON player.id = player_score.player_id 
+WHERE player_score.tenant_id = ? AND player_score.competition_id = ? AND player.id IS NOT NULL
+ORDER BY score DESC, row_num
+`,
 			tenant.ID,
 			competitionID,
 		); err != nil {
 			return nil, fmt.Errorf("error Select player_score: tenantID=%d, competitionID=%s, %w", tenant.ID, competitionID, err)
 		}
 		ranks := make([]CompetitionRank, 0, len(pss))
-		scoredPlayerSet := make(map[string]struct{}, len(pss))
 		for _, ps := range pss {
-			// player_scoreが同一player_id内ではrow_numの降順でソートされているので
-			// 現れたのが2回目以降のplayer_idはより大きいrow_numでスコアが出ているとみなせる
-			if _, ok := scoredPlayerSet[ps.PlayerID]; ok {
-				continue
-			}
-			scoredPlayerSet[ps.PlayerID] = struct{}{}
 			ranks = append(ranks, CompetitionRank{
 				Score:             ps.Score,
 				PlayerID:          ps.PlayerID,
@@ -1493,12 +1491,6 @@ func competitionRankingHandler(c echo.Context) error {
 				RowNum:            ps.RowNum,
 			})
 		}
-		sort.Slice(ranks, func(i, j int) bool {
-			if ranks[i].Score == ranks[j].Score {
-				return ranks[i].RowNum < ranks[j].RowNum
-			}
-			return ranks[i].Score > ranks[j].Score
-		})
 		return ranks, nil
 	})
 	if err != nil {
