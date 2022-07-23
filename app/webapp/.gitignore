@@ -1,0 +1,9 @@
+sqlite-trace.log
+
+java/
+node/
+php/
+python/
+rust/
+perl/
+ruby/
