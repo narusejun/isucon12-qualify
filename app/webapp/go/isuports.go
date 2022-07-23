@@ -941,6 +941,9 @@ func playersAddHandler(c echo.Context) error {
 		if err != nil {
 			return fmt.Errorf("error dispenseID: %w", err)
 		}
+		if displayName == "" {
+			fmt.Printf("displayName is empty!!!!!")
+		}
 		now := time.Now().Unix()
 		pr = append(pr, PlayerRow{
 			ID:             id,
