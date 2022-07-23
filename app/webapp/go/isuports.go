@@ -35,6 +35,7 @@ import (
 
 const (
 	tenantDBSchemaFilePath = "/home/isucon/webapp/sql/tenant/10_schema.sql"
+	tenantDBIndexFilePath  = "/home/isucon/webapp/sql/tenant/11_index.sql"
 	initializeScript       = "/home/isucon/webapp/sql/init.sh"
 	cookieName             = "isuports_session"
 
@@ -137,6 +138,11 @@ func createTenantDB(id int64) error {
 		return fmt.Errorf("failed to read tenant DB schema: %w", err)
 	}
 
+	index, err := os.ReadFile(tenantDBIndexFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to read tenant DB index: %w", err)
+	}
+
 	db, err := connectToTenantDB(id)
 	if err != nil {
 		return fmt.Errorf("failed to connect to tenant DB: %w", err)
@@ -148,7 +154,7 @@ func createTenantDB(id int64) error {
 	}
 	defer tx.Rollback()
 
-	for _, sql := range strings.Split(string(schema), ";") {
+	for _, sql := range strings.Split(string(schema)+string(index), ";") {
 		sql = strings.TrimSpace(sql)
 		if sql == "" {
 			continue
