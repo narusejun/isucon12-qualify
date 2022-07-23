@@ -21,6 +21,7 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/gofrs/flock"
 	"github.com/jmoiron/sqlx"
+	"github.com/kaz/pprotein/integration/standalone"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
@@ -133,6 +134,8 @@ func SetCacheControlPrivate(next echo.HandlerFunc) echo.HandlerFunc {
 
 // Run は cmd/isuports/main.go から呼ばれるエントリーポイントです
 func Run() {
+	go standalone.Integrate(":8888")
+
 	e := echo.New()
 	e.Debug = true
 	e.Logger.SetLevel(log.DEBUG)
@@ -1616,5 +1619,12 @@ func initializeHandler(c echo.Context) error {
 	res := InitializeHandlerResult{
 		Lang: "go",
 	}
+
+	go func() {
+		if _, err := http.Get("https://pprotein.angelkawaii.com/api/group/collect"); err != nil {
+			log.Printf("failed to communicate with pprotein: %v", err)
+		}
+	}()
+
 	return c.JSON(http.StatusOK, SuccessResult{Status: true, Data: res})
 }
