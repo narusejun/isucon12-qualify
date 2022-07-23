@@ -16,7 +16,7 @@ mysql -u"$ISUCON_DB_USER" \
 		--port "$ISUCON_DB_PORT" \
 		"$ISUCON_DB_NAME" < init.sql
 
-for id in $(seq 1 100)
+for id in $(seq 2 100)
 do
 	echo "
 		DROP DATABASE IF EXISTS isuports_tenant_$id;
