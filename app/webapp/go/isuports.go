@@ -1461,7 +1461,7 @@ func competitionRankingHandler(c echo.Context) error {
 	tenantLock.RLock()
 	defer tenantLock.RUnlock()
 
-	doResult, err, _ := crGroup.Do(competitionID+"-"+rankAfterStr, func() (interface{}, error) {
+	doResult, err, _ := crGroup.Do(competitionID, func() (interface{}, error) {
 		pss := []PlayerScoreRow{}
 		if err := tenantDB.SelectContext(
 			ctx,
