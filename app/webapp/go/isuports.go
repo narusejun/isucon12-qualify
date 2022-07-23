@@ -485,7 +485,7 @@ type PlayerScoreRow struct {
 	UpdatedAt     int64  `db:"updated_at"`
 	// 追加
 	DisplayName      string `db:"display_name"`
-	CompetitionTitle string `db:"-"`
+	CompetitionTitle string `db:"title"`
 }
 
 // 排他ロックのためのファイル名を生成する
@@ -1300,26 +1300,45 @@ func playerHandler(c echo.Context) error {
 	defer tenantLock.RUnlock()
 
 	pss := make([]PlayerScoreRow, 0, len(cs))
-	for _, c := range cs {
-		ps := PlayerScoreRow{}
-		if err := tenantDB.GetContext(
-			ctx,
-			&ps,
-			// 最後にCSVに登場したスコアを採用する = row_numが一番大きいもの
-			"SELECT score FROM player_score WHERE tenant_id = ? AND competition_id = ? AND player_id = ? ORDER BY row_num DESC LIMIT 1",
-			v.tenantID,
-			c.ID,
-			p.ID,
-		); err != nil {
-			// 行がない = スコアが記録されてない
-			if errors.Is(err, sql.ErrNoRows) {
-				continue
-			}
-			return fmt.Errorf("error Select player_score: tenantID=%d, competitionID=%s, playerID=%s, %w", v.tenantID, c.ID, p.ID, err)
-		}
-		ps.CompetitionTitle = c.Title
-		pss = append(pss, ps)
-	}
+	tenantDB.SelectContext(
+		ctx,
+		&pss,
+		`
+WITH t1 AS(
+    SELECT
+        player_score.competition_id,
+        player_score.score,
+    	competition.title,
+        RANK() OVER(
+        	PARTITION BY competition_id
+    		ORDER BY
+        		row_num
+   			DESC
+    	) AS ranking
+	FROM
+    	player_score
+    LEFT JOIN 
+		competition
+	ON
+		player_score.competition_id = competition.id
+	WHERE
+    	competition.tenant_id = ? AND player_id = ?
+    ORDER BY 
+    	competition.created_at ASC    
+)
+
+SELECT
+    competition_id,
+    score,
+    title
+FROM
+    t1
+WHERE
+    ranking = 1;
+`,
+		v.tenantID,
+		p.ID,
+	)
 
 	psds := make([]PlayerScoreDetail, 0, len(pss))
 	for _, ps := range pss {
