@@ -1261,14 +1261,14 @@ func playerHandler(c echo.Context) error {
 	defer fl.Close()
 
 	type Row struct {
-		Score int64  `db:"score"`
 		Title string `db:"title"`
+		Score int64  `db:"score"`
 	}
 	pss := []Row{}
 	if err := tenantDB.GetContext(
 		ctx,
 		&pss,
-		"SELECT competition.title, score FROM player_score INNER JOIN competition ON player_score.competition_id = competition.id WHERE player_id = ? AND row_num IN (SELECT MAX(row_num) FROM player_score WHERE player_id = ? GROUP BY competition_id) ORDER BY competition.created_at ASC",
+		"SELECT competition.title AS title, score FROM player_score INNER JOIN competition ON player_score.competition_id = competition.id WHERE player_id = ? AND row_num IN (SELECT MAX(row_num) FROM player_score WHERE player_id = ? GROUP BY competition_id) ORDER BY competition.created_at ASC",
 		p.ID,
 		p.ID,
 	); err != nil {
