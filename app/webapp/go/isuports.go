@@ -56,14 +56,7 @@ var (
 
 	snowflakeNode *snowflake.Node
 
-	flockMem              *stringCache[sync.RWMutex]
-	playerDetailsPool     *arrPool[PlayerDetail]
-	playerRowPool         *arrPool[PlayerRow]
-	playerScoreRowPool    *arrPool[PlayerScoreRow]
-	playerScoreDetailPool *arrPool[PlayerScoreDetail]
-	competitionRowPool    *arrPool[CompetitionRow]
-	competitionRanksPool  *arrPool[CompetitionRank]
-	competitionDetailPool *arrPool[CompetitionDetail]
+	flockMem *stringCache[sync.RWMutex]
 
 	userCache *stringCache[PlayerRow]
 	notFound  = errors.New("not found")
@@ -78,14 +71,6 @@ func init() {
 	flockMem = newStringCache(100, func(key string) (*sync.RWMutex, error) {
 		return &sync.RWMutex{}, nil
 	})
-
-	playerDetailsPool = newArrPool[PlayerDetail](100)
-	playerRowPool = newArrPool[PlayerRow](100)
-	playerScoreRowPool = newArrPool[PlayerScoreRow](100)
-	playerScoreDetailPool = newArrPool[PlayerScoreDetail](100)
-	competitionRowPool = newArrPool[CompetitionRow](100)
-	competitionRanksPool = newArrPool[CompetitionRank](100)
-	competitionDetailPool = newArrPool[CompetitionDetail](100)
 
 	userCache = newStringCache(100, func(key string) (*PlayerRow, error) {
 		return nil, notFound
@@ -949,11 +934,8 @@ func playersAddHandler(c echo.Context) error {
 	}
 	displayNames := params["display_name[]"]
 
-	pds, returnPds := playerDetailsPool.get()
-	defer returnPds()
-	pr, returnPr := playerRowPool.get()
-	defer returnPr()
-
+	pds := make([]PlayerDetail, 0, len(displayNames))
+	pr := make([]PlayerRow, 0, len(displayNames))
 	for _, displayName := range displayNames {
 		id, err := dispenseID(ctx)
 		if err != nil {
@@ -1310,9 +1292,7 @@ func billingHandler(c echo.Context) error {
 		return err
 	}
 
-	cs, returnCs := competitionRowPool.get()
-	defer returnCs()
-
+	cs := []CompetitionRow{}
 	if err := tenantDB.SelectContext(
 		ctx,
 		&cs,
@@ -1401,8 +1381,7 @@ func playerHandler(c echo.Context) error {
 		}
 		return fmt.Errorf("error retrievePlayer: %w", err)
 	}
-	cs, returnCs := competitionRowPool.get()
-	defer returnCs()
+	cs := []CompetitionRow{}
 	if err := tenantDB.SelectContext(
 		ctx,
 		&cs,
@@ -1416,8 +1395,7 @@ func playerHandler(c echo.Context) error {
 	tenantLock.RLock()
 	defer tenantLock.RUnlock()
 
-	pss, returnPss := playerScoreRowPool.get()
-	defer returnPss()
+	pss := make([]PlayerScoreRow, 0, len(cs))
 	tenantDB.SelectContext(
 		ctx,
 		&pss,
@@ -1457,8 +1435,7 @@ WHERE
 		p.ID,
 	)
 
-	psds, returnPsds := playerScoreDetailPool.get()
-	defer returnPsds()
+	psds := make([]PlayerScoreDetail, 0, len(pss))
 	for _, ps := range pss {
 		psds = append(psds, PlayerScoreDetail{
 			CompetitionTitle: ps.CompetitionTitle,
@@ -1597,9 +1574,7 @@ ORDER BY score DESC, row_num
 	}
 
 	ranks := doResult.([]CompetitionRank)
-
-	pagedRanks, returnPagedRanks := competitionRanksPool.get()
-	defer returnPagedRanks()
+	pagedRanks := make([]CompetitionRank, 0, 100)
 	for i, rank := range ranks {
 		if int64(i) < rankAfter {
 			continue
@@ -1681,8 +1656,7 @@ func organizerCompetitionsHandler(c echo.Context) error {
 func competitionsHandler(c echo.Context, v *Viewer, tenantDB dbOrTx) error {
 	ctx := context.Background()
 
-	cs, returnCs := competitionRowPool.get()
-	defer returnCs()
+	cs := []CompetitionRow{}
 	if err := tenantDB.SelectContext(
 		ctx,
 		&cs,
@@ -1690,8 +1664,7 @@ func competitionsHandler(c echo.Context, v *Viewer, tenantDB dbOrTx) error {
 	); err != nil {
 		return fmt.Errorf("error Select competition: %w", err)
 	}
-	cds, returnCds := competitionDetailPool.get()
-	defer returnCds()
+	cds := make([]CompetitionDetail, 0, len(cs))
 	for _, comp := range cs {
 		cds = append(cds, CompetitionDetail{
 			ID:         comp.ID,
