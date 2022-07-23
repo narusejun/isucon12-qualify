@@ -709,8 +709,8 @@ func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID i
 	if err := tenantDB.SelectContext(
 		ctx,
 		&scoredPlayerIDs,
-		"SELECT DISTINCT(player_id) FROM player_score WHERE tenant_id = ? AND competition_id = ?",
-		tenantID, comp.ID,
+		"SELECT DISTINCT(player_id) FROM player_score WHERE competition_id = ?",
+		comp.ID,
 	); err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("error Select count player_score: tenantID=%d, competitionID=%s, %w", tenantID, comp.ID, err)
 	}
@@ -838,8 +838,7 @@ func tenantsBillingHandler(c echo.Context) error {
 			if err := tenantDB.SelectContext(
 				ctx,
 				&cs,
-				"SELECT * FROM competition WHERE tenant_id=? AND finished_at IS NOT NULL",
-				t.ID,
+				"SELECT * FROM competition WHERE finished_at IS NOT NULL",
 			); err != nil {
 				return fmt.Errorf("failed to Select competition: %w", err)
 			}
@@ -903,8 +902,7 @@ func playersListHandler(c echo.Context) error {
 	if err := tenantDB.SelectContext(
 		ctx,
 		&pls,
-		"SELECT id, display_name, is_disqualified FROM player WHERE tenant_id=? ORDER BY created_at DESC",
-		v.tenantID,
+		"SELECT id, display_name, is_disqualified FROM player ORDER BY created_at DESC",
 	); err != nil {
 		return fmt.Errorf("error Select player: %w", err)
 	}
@@ -1266,8 +1264,7 @@ func competitionScoreHandler(c echo.Context) error {
 
 	if _, err := tenantDB.ExecContext(
 		ctx,
-		"DELETE FROM player_score WHERE tenant_id = ? AND competition_id = ?",
-		v.tenantID,
+		"DELETE FROM player_score WHERE competition_id = ?",
 		competitionID,
 	); err != nil {
 		return fmt.Errorf("error Delete player_score: tenantID=%d, competitionID=%s, %w", v.tenantID, competitionID, err)
@@ -1408,8 +1405,7 @@ func playerHandler(c echo.Context) error {
 	if err := tenantDB.SelectContext(
 		ctx,
 		&cs,
-		"SELECT * FROM competition WHERE tenant_id = ? ORDER BY created_at ASC",
-		v.tenantID,
+		"SELECT * FROM competition ORDER BY created_at ASC",
 	); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("error Select competition: %w", err)
 	}
@@ -1443,7 +1439,7 @@ WITH t1 AS(
 	ON
 		player_score.competition_id = competition.id
 	WHERE
-    	competition.tenant_id = ? AND player_id = ?
+    	player_id = ?
     ORDER BY
     	competition.created_at ASC
 )
@@ -1457,7 +1453,6 @@ FROM
 WHERE
     ranking = 1;
 `,
-		v.tenantID,
 		p.ID,
 	)
 
@@ -1580,10 +1575,9 @@ player.id as player_id,
 player.display_name as display_name
 FROM player_score
 LEFT JOIN player ON player.id = player_score.player_id
-WHERE player_score.tenant_id = ? AND player_score.competition_id = ? AND player.id IS NOT NULL
+WHERE player_score.competition_id = ? AND player.id IS NOT NULL
 ORDER BY score DESC, row_num
 `,
-			tenant.ID,
 			competitionID,
 		); err != nil {
 			return nil, fmt.Errorf("error Select player_score: tenantID=%d, competitionID=%s, %w", tenant.ID, competitionID, err)
@@ -1693,8 +1687,7 @@ func competitionsHandler(c echo.Context, v *Viewer, tenantDB dbOrTx) error {
 	if err := tenantDB.SelectContext(
 		ctx,
 		&cs,
-		"SELECT * FROM competition WHERE tenant_id=? ORDER BY created_at DESC",
-		v.tenantID,
+		"SELECT * FROM competition ORDER BY created_at DESC",
 	); err != nil {
 		return fmt.Errorf("error Select competition: %w", err)
 	}
