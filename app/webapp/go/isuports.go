@@ -6,7 +6,6 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
-	"golang.org/x/sync/errgroup"
 	"io"
 	"net/http"
 	"os"
@@ -19,6 +18,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/bwmarrin/snowflake"
 	"github.com/go-sql-driver/mysql"
@@ -99,7 +100,7 @@ var (
 
 func getConnection(id int64, fillDBN bool) (*sqlx.DB, error) {
 	host := "isuports-2.t.isucon.dev"
-	if id%2 == 1 {
+	if id < 200 && id/10%2 == 0 {
 		host = "isuports-3.t.isucon.dev"
 	}
 
@@ -1355,14 +1356,14 @@ WITH t1 AS(
     	) AS ranking
 	FROM
     	player_score
-    LEFT JOIN 
+    LEFT JOIN
 		competition
 	ON
 		player_score.competition_id = competition.id
 	WHERE
     	competition.tenant_id = ? AND player_id = ?
-    ORDER BY 
-    	competition.created_at ASC    
+    ORDER BY
+    	competition.created_at ASC
 )
 
 SELECT
@@ -1488,12 +1489,12 @@ func competitionRankingHandler(c echo.Context) error {
 			&pss,
 			`
 SELECT DISTINCT
-FIRST_VALUE(player_score.score) OVER(PARTITION BY player_score.player_id ORDER BY row_num DESC) AS score, 
-FIRST_VALUE(player_score.row_num) OVER(PARTITION BY player_score.player_id ORDER BY row_num DESC) AS row_num, 
+FIRST_VALUE(player_score.score) OVER(PARTITION BY player_score.player_id ORDER BY row_num DESC) AS score,
+FIRST_VALUE(player_score.row_num) OVER(PARTITION BY player_score.player_id ORDER BY row_num DESC) AS row_num,
 player.id as player_id,
-player.display_name as display_name 
-FROM player_score 
-LEFT JOIN player ON player.id = player_score.player_id 
+player.display_name as display_name
+FROM player_score
+LEFT JOIN player ON player.id = player_score.player_id
 WHERE player_score.tenant_id = ? AND player_score.competition_id = ? AND player.id IS NOT NULL
 ORDER BY score DESC, row_num
 `,
