@@ -142,8 +142,8 @@ func getConnection(id int64, fillDBN bool) (*sqlx.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	db.SetMaxOpenConns(100)
-	db.SetMaxIdleConns(100)
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(10)
 	return db, nil
 }
 
