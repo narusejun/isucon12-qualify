@@ -1340,7 +1340,7 @@ WITH t1 AS(
 	ON
 		player_score.competition_id = competition.id
 	WHERE
-    	competition.tenant_id = ? AND player_id = ?
+    	player_id = ?
     ORDER BY 
     	competition.created_at ASC    
 )
@@ -1354,7 +1354,6 @@ FROM
 WHERE
     ranking = 1;
 `,
-		v.tenantID,
 		p.ID,
 	)
 
@@ -1474,10 +1473,9 @@ player.id as player_id,
 player.display_name as display_name 
 FROM player_score 
 LEFT JOIN player ON player.id = player_score.player_id 
-WHERE player_score.tenant_id = ? AND player_score.competition_id = ? AND player.id IS NOT NULL
+WHERE player_score.competition_id = ? AND player.id IS NOT NULL
 ORDER BY score DESC, row_num
 `,
-			tenant.ID,
 			competitionID,
 		); err != nil {
 			return nil, fmt.Errorf("error Select player_score: tenantID=%d, competitionID=%s, %w", tenant.ID, competitionID, err)
@@ -1584,8 +1582,7 @@ func competitionsHandler(c echo.Context, v *Viewer, tenantDB dbOrTx) error {
 	if err := tenantDB.SelectContext(
 		ctx,
 		&cs,
-		"SELECT * FROM competition WHERE tenant_id=? ORDER BY created_at DESC",
-		v.tenantID,
+		"SELECT * FROM competition ORDER BY created_at DESC",
 	); err != nil {
 		return fmt.Errorf("error Select competition: %w", err)
 	}
