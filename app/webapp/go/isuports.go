@@ -139,6 +139,7 @@ func Run() {
 	e := echo.New()
 	e.Debug = true
 	e.Logger.SetLevel(log.DEBUG)
+	e.JSONSerializer = &JsonSerializer{}
 
 	var (
 		sqlLogger io.Closer
