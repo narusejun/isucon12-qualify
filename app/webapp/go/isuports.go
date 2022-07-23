@@ -1283,6 +1283,7 @@ func billingHandler(c echo.Context) error {
 	lock := sync.Mutex{}
 	tbrs := make([]*BillingReport, 0, len(cs))
 	eg, ctx := errgroup.WithContext(c.Request().Context())
+	eg.SetLimit(5)
 	for i := range cs {
 		i := i
 		eg.Go(func() error {
