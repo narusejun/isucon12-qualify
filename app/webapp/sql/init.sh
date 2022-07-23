@@ -16,8 +16,8 @@ mysql -u"$ISUCON_DB_USER" \
 		--port "$ISUCON_DB_PORT" \
 		"$ISUCON_DB_NAME" < init.sql &
 
-export id=1
-sh init_tenant_huge.sh &
+# export id=1
+# sh init_tenant_huge.sh &
 
 for id in $(seq 2 100)
 do
