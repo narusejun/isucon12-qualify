@@ -16,8 +16,14 @@ mysql -u"$ISUCON_DB_USER" \
 		--port "$ISUCON_DB_PORT" \
 		"$ISUCON_DB_NAME" < init.sql &
 
-# export id=1
-# sh init_tenant_huge.sh &
+export ISUCON_DB_HOST=isuports-3.t.isucon.dev
+echo "
+DELETE FROM isuports_tenant_1.player_score WHERE created_at > 1656601200;
+" | mysql -u"$ISUCON_DB_USER" \
+		-p"$ISUCON_DB_PASSWORD" \
+		--host "$ISUCON_DB_HOST" \
+		--port "$ISUCON_DB_PORT" \
+		"$ISUCON_DB_NAME" &
 
 for id in $(seq 2 100); do
 	export id=$id
