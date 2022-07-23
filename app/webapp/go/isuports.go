@@ -139,6 +139,7 @@ func Run() {
 	e := echo.New()
 	e.Debug = true
 	e.Logger.SetLevel(log.DEBUG)
+	e.JSONSerializer = &JsonSerializer{}
 
 	var (
 		sqlLogger io.Closer
@@ -669,14 +670,17 @@ func tenantsBillingHandler(c echo.Context) error {
 	//   を合計したものを
 	// テナントの課金とする
 	ts := []TenantRow{}
-	if err := adminDB.SelectContext(ctx, &ts, "SELECT * FROM tenant ORDER BY id DESC"); err != nil {
-		return fmt.Errorf("error Select tenant: %w", err)
+	if beforeID != 0 {
+		if err := adminDB.SelectContext(ctx, &ts, "SELECT * FROM tenant WHERE id < ? ORDER BY id DESC LIMIT 10", beforeID); err != nil {
+			return fmt.Errorf("error Select tenant: %w", err)
+		}
+	} else {
+		if err := adminDB.SelectContext(ctx, &ts, "SELECT * FROM tenant ORDER BY id DESC LIMIT 10"); err != nil {
+			return fmt.Errorf("error Select tenant: %w", err)
+		}
 	}
 	tenantBillings := make([]TenantWithBilling, 0, len(ts))
 	for _, t := range ts {
-		if beforeID != 0 && beforeID <= t.ID {
-			continue
-		}
 		err := func(t TenantRow) error {
 			tb := TenantWithBilling{
 				ID:          strconv.FormatInt(t.ID, 10),
@@ -709,9 +713,6 @@ func tenantsBillingHandler(c echo.Context) error {
 		}(t)
 		if err != nil {
 			return err
-		}
-		if len(tenantBillings) >= 10 {
-			break
 		}
 	}
 	return c.JSON(http.StatusOK, SuccessResult{
@@ -1138,7 +1139,7 @@ func competitionScoreHandler(c echo.Context) error {
 }
 
 type BillingHandlerResult struct {
-	Reports []BillingReport `json:"reports"`
+	Reports []*BillingReport `json:"reports"`
 }
 
 // テナント管理者向けAPI
@@ -1169,13 +1170,13 @@ func billingHandler(c echo.Context) error {
 	); err != nil {
 		return fmt.Errorf("error Select competition: %w", err)
 	}
-	tbrs := make([]BillingReport, 0, len(cs))
+	tbrs := make([]*BillingReport, 0, len(cs))
 	for _, comp := range cs {
 		report, err := billingReportByCompetition(ctx, tenantDB, v.tenantID, &comp)
 		if err != nil {
 			return fmt.Errorf("error billingReportByCompetition: %w", err)
 		}
-		tbrs = append(tbrs, *report)
+		tbrs = append(tbrs, report)
 	}
 
 	res := SuccessResult{
