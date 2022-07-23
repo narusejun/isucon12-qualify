@@ -65,6 +65,9 @@ var (
 	competitionRowPool    *arrPool[CompetitionRow]
 	competitionRanksPool  *arrPool[CompetitionRank]
 	competitionDetailPool *arrPool[CompetitionDetail]
+
+	userCache *stringCache[PlayerRow]
+	notFound  = errors.New("not found")
 )
 
 func init() {
@@ -84,6 +87,10 @@ func init() {
 	competitionRowPool = newArrPool[CompetitionRow](100)
 	competitionRanksPool = newArrPool[CompetitionRank](100)
 	competitionDetailPool = newArrPool[CompetitionDetail](100)
+
+	userCache = newStringCache(100, func(key string) (*PlayerRow, error) {
+		return nil, notFound
+	})
 }
 
 // 環境変数を取得する、なければデフォルト値を返す
@@ -469,11 +476,18 @@ type PlayerRow struct {
 
 // 参加者を取得する
 func retrievePlayer(ctx context.Context, tenantDB dbOrTx, id string) (*PlayerRow, error) {
-	var p PlayerRow
-	if err := tenantDB.GetContext(ctx, &p, "SELECT * FROM player WHERE id = ?", id); err != nil {
+	p, ok := userCache.get(id)
+	if ok {
+		return p, nil
+	}
+
+	p = &PlayerRow{}
+	if err := tenantDB.GetContext(ctx, p, "SELECT * FROM player WHERE id = ?", id); err != nil {
 		return nil, fmt.Errorf("error Select player: id=%s, %w", id, err)
 	}
-	return &p, nil
+	userCache.set(id, p)
+
+	return p, nil
 }
 
 // 参加者を認可する
@@ -1001,6 +1015,11 @@ func playerDisqualifiedHandler(c echo.Context) error {
 
 	playerID := c.Param("player_id")
 
+	p, err := retrievePlayer(ctx, tenantDB, playerID)
+	if err == nil && p != nil {
+		p.IsDisqualified = true
+	}
+
 	now := time.Now().Unix()
 	if _, err := tenantDB.ExecContext(
 		ctx,
@@ -1012,7 +1031,7 @@ func playerDisqualifiedHandler(c echo.Context) error {
 			true, now, playerID, err,
 		)
 	}
-	p, err := retrievePlayer(ctx, tenantDB, playerID)
+
 	if err != nil {
 		// 存在しないプレイヤー
 		if errors.Is(err, sql.ErrNoRows) {
@@ -1802,6 +1821,7 @@ func initializeHandler(c echo.Context) error {
 	res := InitializeHandlerResult{
 		Lang: "go",
 	}
+	userCache.reset()
 
 	go func() {
 		if _, err := http.Get("https://pprotein.angelkawaii.com/api/group/collect"); err != nil {
