@@ -756,7 +756,7 @@ func playersListHandler(c echo.Context) error {
 	if err := tenantDB.SelectContext(
 		ctx,
 		&pls,
-		"SELECT * FROM player WHERE tenant_id=? ORDER BY created_at DESC",
+		"SELECT id, display_name, is_disqualified FROM player WHERE tenant_id=? ORDER BY created_at DESC",
 		v.tenantID,
 	); err != nil {
 		return fmt.Errorf("error Select player: %w", err)
