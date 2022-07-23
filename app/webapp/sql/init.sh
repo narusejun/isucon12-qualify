@@ -23,8 +23,11 @@ do
 		CREATE DATABASE isuports_tenant_$id;
 
 		USE base_isuports_tenant_$id;
+		UNLOCK TABLES;
 		FLUSH TABLES competition FOR EXPORT;
+		UNLOCK TABLES;
 		FLUSH TABLES player FOR EXPORT;
+		UNLOCK TABLES;
 		FLUSH TABLES player_score FOR EXPORT;
 
 		USE isuports_tenant_$id;
