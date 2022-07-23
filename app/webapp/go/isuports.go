@@ -1136,7 +1136,7 @@ func competitionScoreHandler(c echo.Context) error {
 }
 
 type BillingHandlerResult struct {
-	Reports []BillingReport `json:"reports"`
+	Reports []*BillingReport `json:"reports"`
 }
 
 // テナント管理者向けAPI
@@ -1167,13 +1167,13 @@ func billingHandler(c echo.Context) error {
 	); err != nil {
 		return fmt.Errorf("error Select competition: %w", err)
 	}
-	tbrs := make([]BillingReport, 0, len(cs))
+	tbrs := make([]*BillingReport, 0, len(cs))
 	for _, comp := range cs {
 		report, err := billingReportByCompetition(ctx, tenantDB, v.tenantID, &comp)
 		if err != nil {
 			return fmt.Errorf("error billingReportByCompetition: %w", err)
 		}
-		tbrs = append(tbrs, *report)
+		tbrs = append(tbrs, report)
 	}
 
 	res := SuccessResult{
