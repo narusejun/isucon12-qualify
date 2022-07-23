@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bwmarrin/snowflake"
 	"github.com/go-sql-driver/mysql"
 	"github.com/gofrs/flock"
 	"github.com/jmoiron/sqlx"
@@ -49,7 +50,17 @@ var (
 	adminDB *sqlx.DB
 
 	sqliteDriverName = "sqlite3"
+
+	snowflakeNode *snowflake.Node
 )
+
+func init() {
+	var err error
+	snowflakeNode, err = snowflake.NewNode(int64(getEnvInt("ISUCON_SNOWFLAKE_NODE_ID", 1)))
+	if err != nil {
+		panic(err)
+	}
+}
 
 // 環境変数を取得する、なければデフォルト値を返す
 func getEnv(key string, defaultValue string) string {
@@ -129,28 +140,29 @@ func createTenantDB(id int64) error {
 
 // システム全体で一意なIDを生成する
 func dispenseID(ctx context.Context) (string, error) {
-	var id int64
-	var lastErr error
-	for i := 0; i < 100; i++ {
-		var ret sql.Result
-		ret, err := adminDB.ExecContext(ctx, "REPLACE INTO id_generator (stub) VALUES (?);", "a")
-		if err != nil {
-			if merr, ok := err.(*mysql.MySQLError); ok && merr.Number == 1213 { // deadlock
-				lastErr = fmt.Errorf("error REPLACE INTO id_generator: %w", err)
-				continue
-			}
-			return "", fmt.Errorf("error REPLACE INTO id_generator: %w", err)
-		}
-		id, err = ret.LastInsertId()
-		if err != nil {
-			return "", fmt.Errorf("error ret.LastInsertId: %w", err)
-		}
-		break
-	}
-	if id != 0 {
-		return fmt.Sprintf("%x", id), nil
-	}
-	return "", lastErr
+	return fmt.Sprintf("%x", snowflakeNode.Generate().Int64()), nil
+	//var id int64
+	//var lastErr error
+	//for i := 0; i < 100; i++ {
+	//	var ret sql.Result
+	//	ret, err := adminDB.ExecContext(ctx, "REPLACE INTO id_generator (stub) VALUES (?);", "a")
+	//	if err != nil {
+	//		if merr, ok := err.(*mysql.MySQLError); ok && merr.Number == 1213 { // deadlock
+	//			lastErr = fmt.Errorf("error REPLACE INTO id_generator: %w", err)
+	//			continue
+	//		}
+	//		return "", fmt.Errorf("error REPLACE INTO id_generator: %w", err)
+	//	}
+	//	id, err = ret.LastInsertId()
+	//	if err != nil {
+	//		return "", fmt.Errorf("error ret.LastInsertId: %w", err)
+	//	}
+	//	break
+	//}
+	//if id != 0 {
+	//	return fmt.Sprintf("%x", id), nil
+	//}
+	//return "", lastErr
 }
 
 // 全APIにCache-Control: privateを設定する
