@@ -1547,6 +1547,7 @@ func competitionRankingHandler(c echo.Context) error {
 	defer tenantLock.RUnlock()
 
 	doResult, err, _ := crGroup.Do(competitionID, func() (interface{}, error) {
+		time.Sleep(100 * time.Millisecond)
 		pss := []PlayerScoreRow{}
 		pss, returnPss := playerScoreRowPool.get()
 		defer returnPss()
