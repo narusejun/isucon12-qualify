@@ -728,7 +728,7 @@ func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID i
 	}
 
 	if _, err := adminDB.ExecContext(ctx,
-		"INSERT INTO billing_report (`tenant_id`, `competition_id`, `competition_title`, `player_count`, `visitor_count`, `billing_player_yen`, `billing_visitor_yen`, `billing_yen`) VALUES (?,?,?,?,?,?,?,?)",
+		"INSERT IGNORE INTO billing_report (`tenant_id`, `competition_id`, `competition_title`, `player_count`, `visitor_count`, `billing_player_yen`, `billing_visitor_yen`, `billing_yen`) VALUES (?,?,?,?,?,?,?,?)",
 		tenantID,
 		b.CompetitionID,
 		b.CompetitionTitle,
