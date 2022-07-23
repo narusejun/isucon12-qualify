@@ -1563,8 +1563,6 @@ func competitionRankingHandler(c echo.Context) error {
 
 	doResult, err, _ := crGroup.Do(competitionID, func() (interface{}, error) {
 		pss := []PlayerScoreRow{}
-		pss, returnPss := playerScoreRowPool.get()
-		defer returnPss()
 		if err := tenantDB.SelectContext(
 			ctx,
 			&pss,
