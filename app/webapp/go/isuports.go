@@ -106,6 +106,7 @@ func connectToTenantDB(id int64) (*sqlx.DB, error) {
 	config.Passwd = getEnv("ISUCON_DB_PASSWORD", "isucon")
 	config.DBName = fmt.Sprintf("isuports_tenant_%d", id)
 	config.ParseTime = true
+	config.InterpolateParams = true
 	dsn := config.FormatDSN()
 	db, err := sqlx.Open("mysql", dsn)
 	if err != nil {
