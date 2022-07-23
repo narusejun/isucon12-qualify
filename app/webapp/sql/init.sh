@@ -21,14 +21,18 @@ do
 	echo "
 		DROP DATABASE IF EXISTS isuports_tenant_$id;
 		CREATE DATABASE isuports_tenant_$id;
+		USE isuports_tenant_$id;
+		SET autocommit = 0;
+		BEGIN;
+		$(cat tenant/10_schema.sql)
+		INSERT INTO competition SELECT * FROM base_isuports_tenant_$id.competition;
+		INSERT INTO player SELECT * FROM base_isuports_tenant_$id.player;
+		INSERT INTO player_score SELECT * FROM base_isuports_tenant_$id.player_score;
+		COMMIT;
 	" | mysql -u"$ISUCON_DB_USER" \
 			-p"$ISUCON_DB_PASSWORD" \
 			--host "$ISUCON_DB_HOST" \
-			--port "$ISUCON_DB_PORT" \
-			"isuports_tenant_$id"
-	mysql -u"$ISUCON_DB_USER" \
-			-p"$ISUCON_DB_PASSWORD" \
-			--host "$ISUCON_DB_HOST" \
-			--port "$ISUCON_DB_PORT" \
-			"isuports_tenant_$id" < "$HOME/initial_data/$id.sql"
+			--port "$ISUCON_DB_PORT" &
 done
+
+wait
