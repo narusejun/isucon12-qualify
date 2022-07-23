@@ -30,4 +30,16 @@ CREATE TABLE `visit_history` (
   INDEX `tenant_id_idx` (`tenant_id`)
 ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4;
 
+CREATE TABLE `billing_report` (
+  `tenant_id` BIGINT UNSIGNED NOT NULL,
+  `competition_id` VARCHAR(255) NOT NULL,
+  `competition_title` TEXT NOT NULL,
+  `player_count` BIGINT NOT NULL,
+  `visitor_count` BIGINT NOT NULL,
+  `billing_player_yen` BIGINT NOT NULL,
+  `billing_visitor_yen` BIGINT NOT NULL,
+  `billing_yen` BIGINT NOT NULL,
+  UNIQUE KEY `tenant_comp_idx` (`tenant_id`, `competition_id`)
+) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4;
+
 CREATE INDEX `nj_1` ON `visit_history` (`tenant_id`, `competition_id`);

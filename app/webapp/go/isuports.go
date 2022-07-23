@@ -618,13 +618,13 @@ func validateTenantName(name string) error {
 }
 
 type BillingReport struct {
-	CompetitionID     string `json:"competition_id"`
-	CompetitionTitle  string `json:"competition_title"`
-	PlayerCount       int64  `json:"player_count"`        // スコアを登録した参加者数
-	VisitorCount      int64  `json:"visitor_count"`       // ランキングを閲覧だけした(スコアを登録していない)参加者数
-	BillingPlayerYen  int64  `json:"billing_player_yen"`  // 請求金額 スコアを登録した参加者分
-	BillingVisitorYen int64  `json:"billing_visitor_yen"` // 請求金額 ランキングを閲覧だけした(スコアを登録していない)参加者分
-	BillingYen        int64  `json:"billing_yen"`         // 合計請求金額
+	CompetitionID     string `json:"competition_id" db:"competition_id"`
+	CompetitionTitle  string `json:"competition_title" db:"competition_title"`
+	PlayerCount       int64  `json:"player_count" db:"player_count"`               // スコアを登録した参加者数
+	VisitorCount      int64  `json:"visitor_count" db:"visitor_count"`             // ランキングを閲覧だけした(スコアを登録していない)参加者数
+	BillingPlayerYen  int64  `json:"billing_player_yen" db:"billing_player_yen"`   // 請求金額 スコアを登録した参加者分
+	BillingVisitorYen int64  `json:"billing_visitor_yen" db:"billing_visitor_yen"` // 請求金額 ランキングを閲覧だけした(スコアを登録していない)参加者分
+	BillingYen        int64  `json:"billing_yen" db:"billing_yen"`                 // 合計請求金額
 
 	CompetitionCreatedAt int64 `json:"-"`
 }
@@ -655,6 +655,14 @@ func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID i
 			BillingVisitorYen: 0,
 			BillingYen:        0,
 		}, nil
+	}
+
+	var _b []BillingReport
+	if err := adminDB.SelectContext(ctx, &_b, "SELECT * FROM billing_report WHERE tenant_id = ? AND competition_id = ?", tenantID, comp.ID); err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+	if len(_b) > 0 {
+		return &_b[0], nil
 	}
 
 	// ランキングにアクセスした参加者のIDを取得する
@@ -708,7 +716,7 @@ func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID i
 		}
 	}
 
-	return &BillingReport{
+	b := BillingReport{
 		CompetitionID:     comp.ID,
 		CompetitionTitle:  comp.Title,
 		PlayerCount:       playerCount,
@@ -716,7 +724,22 @@ func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID i
 		BillingPlayerYen:  100 * playerCount, // スコアを登録した参加者は100円
 		BillingVisitorYen: 10 * visitorCount, // ランキングを閲覧だけした(スコアを登録していない)参加者は10円
 		BillingYen:        100*playerCount + 10*visitorCount,
-	}, nil
+	}
+
+	if _, err := adminDB.ExecContext(ctx,
+		"INSERT INTO billing_report (`tenant_id`, `competition_id`, `competition_title`, `player_count`, `visitor_count`, `billing_player_yen`, `billing_visitor_yen`, `billing_yen`) VALUES (?,?,?,?,?,?,?,?)",
+		b.CompetitionID,
+		b.CompetitionTitle,
+		b.PlayerCount,
+		b.VisitorCount,
+		b.BillingPlayerYen,
+		b.BillingVisitorYen,
+		b.BillingYen,
+	); err != nil {
+		return nil, err
+	}
+
+	return &b, nil
 }
 
 type TenantWithBilling struct {
