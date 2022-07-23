@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"sync"
 
 	"github.com/bwmarrin/snowflake"
 	"github.com/go-sql-driver/mysql"
@@ -52,6 +53,8 @@ var (
 	sqliteDriverName = "sqlite3"
 
 	snowflakeNode *snowflake.Node
+
+	flockMem *stringCache[sync.RWMutex]
 )
 
 func init() {
@@ -60,6 +63,9 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	flockMem = newStringCache(100, func(key string) (*sync.RWMutex, error) {
+		return &sync.RWMutex{}, nil
+	})
 }
 
 // 環境変数を取得する、なければデフォルト値を返す
@@ -608,11 +614,9 @@ func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID i
 	}
 
 	// player_scoreを読んでいるときに更新が走ると不整合が起こるのでロックを取得する
-	fl, err := flockByTenantID(tenantID)
-	if err != nil {
-		return nil, fmt.Errorf("error flockByTenantID: %w", err)
-	}
-	defer fl.Close()
+	tenantLock, _ := flockMem.get(strconv.Itoa(int(tenantID)))
+	tenantLock.RLock()
+	defer tenantLock.RUnlock()
 
 	// スコアを登録した参加者のIDを取得する
 	scoredPlayerIDs := []string{}
@@ -1089,11 +1093,10 @@ func competitionScoreHandler(c echo.Context) error {
 	}
 
 	// / DELETEしたタイミングで参照が来ると空っぽのランキングになるのでロックする
-	fl, err := flockByTenantID(v.tenantID)
-	if err != nil {
-		return fmt.Errorf("error flockByTenantID: %w", err)
-	}
-	defer fl.Close()
+	tenantLock, _ := flockMem.get(strconv.Itoa(int(v.tenantID)))
+	tenantLock.Lock()
+	defer tenantLock.Unlock()
+
 	var rowNum int64
 	playerScoreRows := []PlayerScoreRow{}
 	for {
@@ -1275,11 +1278,10 @@ func playerHandler(c echo.Context) error {
 	}
 
 	// player_scoreを読んでいるときに更新が走ると不整合が起こるのでロックを取得する
-	fl, err := flockByTenantID(v.tenantID)
-	if err != nil {
-		return fmt.Errorf("error flockByTenantID: %w", err)
-	}
-	defer fl.Close()
+	tenantLock, _ := flockMem.get(strconv.Itoa(int(v.tenantID)))
+	tenantLock.RLock()
+	defer tenantLock.RUnlock()
+
 	pss := make([]PlayerScoreRow, 0, len(cs))
 	for _, c := range cs {
 		ps := PlayerScoreRow{}
@@ -1402,11 +1404,10 @@ func competitionRankingHandler(c echo.Context) error {
 	}
 
 	// player_scoreを読んでいるときに更新が走ると不整合が起こるのでロックを取得する
-	fl, err := flockByTenantID(v.tenantID)
-	if err != nil {
-		return fmt.Errorf("error flockByTenantID: %w", err)
-	}
-	defer fl.Close()
+	tenantLock, _ := flockMem.get(strconv.Itoa(int(tenant.ID)))
+	tenantLock.RLock()
+	defer tenantLock.RUnlock()
+
 	doResult, err, _ := crGroup.Do(competitionID+"-"+rankAfterStr, func() (interface{}, error) {
 		pss := []PlayerScoreRow{}
 		if err := tenantDB.SelectContext(
